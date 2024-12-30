@@ -1,5 +1,7 @@
 #include <WiFi.h>
 #include <time.h>
+#include <Adafruit_SH1106.h>
+#include "Screen.h"
 
 const char *ssid = "Yun";
 const char *password = "0937565253";
@@ -9,95 +11,142 @@ const long gmtOffset_sec = 8 * 3600;    // 台灣 GMT+8
 const int daylightOffset_sec = 0; 
 time_t recordedTime = 0;
 time_t currentTime = 0;
-
+Adafruit_SH1106 dp(-1);
+Screen screen(dp);
 int btnGPIO = 0;
 int btnState = false;
 
 void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(115200);
-  delay(10);
+    screen.screenSetup();
+    pinMode(LED_BUILTIN, OUTPUT);
+    Serial.begin(115200);
+    delay(10);
 
-  // Set GPIO0 Boot button as input
-  pinMode(btnGPIO, INPUT);
+    // Set GPIO0 Boot button as input
+    pinMode(btnGPIO, INPUT);
 
-  // We start by connecting to a WiFi network
-  // To debug, please enable Core Debug Level to Verbose
+    // We start by connecting to a WiFi network
+    // To debug, please enable Core Debug Level to Verbose
 
-  Serial.println();
-  Serial.print("[WiFi] Connecting to ");
-  Serial.println(ssid);
+    Serial.println();
+    Serial.print("[WiFi] Connecting to ");
+    Serial.println(ssid);
 
-  WiFi.begin(ssid, password);
-  // Auto reconnect is set true as default
-  // To set auto connect off, use the following function
-  //    WiFi.setAutoReconnect(false);
+    WiFi.begin(ssid, password);
+    // Auto reconnect is set true as default
+    // To set auto connect off, use the following function
+    //    WiFi.setAutoReconnect(false);
 
-  // Will try for about 10 seconds (20x 500ms)
-  int tryDelay = 500;
-  int numberOfTries = 20;
+    // Will try for about 10 seconds (20x 500ms)
+    int tryDelay = 500;
+    int numberOfTries = 20;
 
-  // Wait for the WiFi event
-  while (true) {
+    // Wait for the WiFi event
+    while (true) {
 
-    switch (WiFi.status()) {
-      case WL_NO_SSID_AVAIL: Serial.println("[WiFi] SSID not found"); break;
-      case WL_CONNECT_FAILED:
-        Serial.print("[WiFi] Failed - WiFi not connected! Reason: ");
-        return;
-        break;
-      case WL_CONNECTION_LOST: Serial.println("[WiFi] Connection was lost"); break;
-      case WL_SCAN_COMPLETED:  Serial.println("[WiFi] Scan is completed"); break;
-      case WL_DISCONNECTED:    Serial.println("[WiFi] WiFi is disconnected"); break;
-      case WL_CONNECTED:
-        Serial.println("[WiFi] WiFi is connected!");
-        Serial.print("[WiFi] IP address: ");
-        Serial.println(WiFi.localIP());
-        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-        struct tm tmp;
-        if (getLocalTime(&tmp)) {
-          recordedTime = mktime(&tmp);
-          Serial.printf("Initial Recorded Time: %ld\n", recordedTime);
-        } else {
-          Serial.println("Failed to obtain initial time");
+        switch (WiFi.status()) {
+        case WL_NO_SSID_AVAIL: {
+            Serial.println("[WiFi] SSID not found");
+            screen.display.clearDisplay();
+            screen.drawString(0, 48, "SSID not found", 1, 0, 1);
+            screen.display.display();
+            break;
         }
-        return;
-        break;
-      default:
-        Serial.print("[WiFi] WiFi Status: ");
-        Serial.println(WiFi.status());
-        break;
-    }
-    delay(tryDelay);
+        case WL_CONNECT_FAILED: {
+            Serial.print("[WiFi] Failed - WiFi not connected! Reason: ");
+            screen.display.clearDisplay();
+            screen.drawString(0, 48, "WiFi connected Failed!", 1, 0, 1);
+            screen.display.display();
+            break;
+        }
+        case WL_CONNECTION_LOST: {
+            Serial.print("[WiFi] Connection was lost");
+            screen.display.clearDisplay();
+            screen.drawString(0, 48, "WiFi Connection was lost", 1, 0, 1);
+            screen.display.display();
+            break;
+        }
+        case WL_SCAN_COMPLETED: {
+            Serial.print("[WiFi] Scan is completed");
+            screen.display.clearDisplay();
+            screen.drawString(0, 48, "Scan is completed", 1, 0, 1);
+            screen.display.display();
+            break;
+        }
+        case WL_DISCONNECTED: {
+            Serial.print("[WiFi] WiFi is disconnected");
+            screen.display.clearDisplay();
+            screen.drawString(0, 48, "WiFi is disconnected", 1, 0, 1);
+            screen.display.display();
+            break;
+        }
+        case WL_CONNECTED: {
+             Serial.println("[WiFi] WiFi is connected!");
+            Serial.print("[WiFi] IP address: ");
+            Serial.println(WiFi.localIP());
+            configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+            struct tm tmp;
+            if (getLocalTime(&tmp)) {
+            recordedTime = mktime(&tmp);
+            Serial.printf("Initial Recorded Time: %ld\n", recordedTime);
+            } else {
+            Serial.println("Failed to obtain initial time");
+            }
+            return;
+            break;
+        }
+        default: {
+            Serial.print("[WiFi] WiFi Status: ");
+            Serial.println(WiFi.status());
+            screen.display.clearDisplay();
+            screen.drawString(0, 48, "Wifi Unknown Error", 1, 0, 1);
+            screen.display.display();
+            break;
+        }
+        }
+        delay(tryDelay);
 
-    if (numberOfTries <= 0) {
-      Serial.print("[WiFi] Failed to connect to WiFi!");
-      // Use disconnect function to force stop trying to connect
-      WiFi.disconnect();
-      return;
-    } else {
-      numberOfTries--;
+        if (numberOfTries <= 0) {
+        Serial.print("[WiFi] Failed to connect to WiFi!");
+        // Use disconnect function to force stop trying to connect
+        WiFi.disconnect();
+        return;
+        } else {
+        numberOfTries--;
+        }
     }
-  }
 }
 bool light_status = false;
 void loop() {
+    screen.display.clearDisplay();
   btnState = digitalRead(btnGPIO);
 
   struct tm tmp;
   if (getLocalTime(&tmp)) {
     currentTime = mktime(&tmp);
+    char x[9];
+    strncpy(x, ctime(&currentTime) + 11, 8);
+    x[8]='\0';
+    screen.drawString(0, 0,x, 1, 0, 1);
   } else {
     Serial.println("Failed to obtain current time");
     delay(1000);
     return;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    // screen.drawString(0, 0, "Connected", 1, 0, 1);
+    // screen.drawString(0, 16, "SSID: ", 1, 0, 1);
+    // screen.drawString(0, 32, WiFi.SSID().c_str(), 1, 0, 1);
+  }
+  else {
+    // screen.drawString(0, 0, "Disconnected", 1, 0, 1);
   }
 
   if (difftime(currentTime, recordedTime) >= 5) {
     recordedTime = currentTime;
     if (WiFi.status() == WL_CONNECTED) {
       if (light_status) {
-        digitalWrite(LED_BUILTIN, HIGH);
+        digitalWrite(LED_BUILTIN, HIGH); 
       }
       else {
         digitalWrite(LED_BUILTIN, LOW);
@@ -115,4 +164,5 @@ void loop() {
     }
     delay(1000);
   }
+  screen.display.display();
 }

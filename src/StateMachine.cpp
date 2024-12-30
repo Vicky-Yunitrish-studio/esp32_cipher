@@ -1,4 +1,5 @@
 #include "StateMachine.h"
+#include <WiFi.h>
 
 StateMachine::StateMachine() : currentState(SystemState::INIT), lastStateChange(0) {}
 
@@ -29,7 +30,7 @@ void StateMachine::update() {
             
         case SystemState::CONNECTING_MQTT:
             // MQTT連接成功後轉換到運行狀態
-            if (/* MQTT connected condition */) {
+            if (true) {
                 setState(SystemState::RUNNING);
             }
             break;
