@@ -19,7 +19,7 @@ Screen::Screen(Adafruit_SH1106& disp) :
     yDir(1) {
 }
 
-void Screen::screenSetup() {
+void Screen::setup() {
     display.begin();
     display.display();
     delay(1000);
@@ -32,7 +32,7 @@ void Screen::drawString(int16_t x, int16_t y, const char* str, uint16_t color, u
     display.println(str);
 }
 
-void Screen::screenLoop() {
+void Screen::loop() {
     if (x>126 || x<0) xDir *= -1;
     if (y>62 || y<0) yDir *= -1;
     x += xDir;

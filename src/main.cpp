@@ -2,6 +2,7 @@
 #include <time.h>
 #include <Adafruit_SH1106.h>
 #include "Screen.h"
+#include "LightTest.h"
 
 const char *ssid = "Yun";
 const char *password = "0937565253";
@@ -16,9 +17,11 @@ Screen screen(dp);
 int btnGPIO = 0;
 int btnState = false;
 
+LightTest light(LED_BUILTIN);
+
 void setup() {
-    screen.screenSetup();
-    pinMode(LED_BUILTIN, OUTPUT);
+    screen.setup();
+    light.setup();
     Serial.begin(115200);
     delay(10);
 
@@ -116,7 +119,6 @@ void setup() {
         }
     }
 }
-bool light_status = false;
 void loop() {
     screen.display.clearDisplay();
   btnState = digitalRead(btnGPIO);
@@ -134,24 +136,18 @@ void loop() {
     return;
   }
   if (WiFi.status() == WL_CONNECTED) {
-    // screen.drawString(0, 0, "Connected", 1, 0, 1);
+    screen.drawString(74, 0, "Connected", 1, 0, 1);
     // screen.drawString(0, 16, "SSID: ", 1, 0, 1);
     // screen.drawString(0, 32, WiFi.SSID().c_str(), 1, 0, 1);
   }
   else {
-    // screen.drawString(0, 0, "Disconnected", 1, 0, 1);
+    screen.drawString(56, 0, "Disconnected", 1, 0, 1);
   }
 
-  if (difftime(currentTime, recordedTime) >= 5) {
+  if (difftime(currentTime, recordedTime) >= 0.2) {
     recordedTime = currentTime;
     if (WiFi.status() == WL_CONNECTED) {
-      if (light_status) {
-        digitalWrite(LED_BUILTIN, HIGH); 
-      }
-      else {
-        digitalWrite(LED_BUILTIN, LOW);
-      }
-      light_status = !light_status;
+      light.update();
     }
   }
   
