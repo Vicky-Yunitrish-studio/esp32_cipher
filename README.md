@@ -7,6 +7,36 @@
 - 戴育琪
 - 王郁琁
 
+## 安裝
+
+|    裝置名稱    |  裝置io  | esp32-GPIO |
+|---------------|----------|------------|
+|    sh1106     |    VCC   |    3.3v    |
+|    sh1106     |    GND   |     GND    |
+|    sh1106     |    SCL   |     22     |
+|    sh1106     |    SDA   |     21     |
+
+|    裝置名稱    |  裝置io  | esp32-GPIO |
+|---------------|----------|------------|
+|     dht11     |    VCC   |    3.3v    |
+|     dht11     |    GND   |     GND    |
+|     dht11     |   DATA   |     14     |
+
+|    裝置名稱    |  裝置io  | esp32-GPIO |
+|---------------|----------|------------|
+|   IRReciver   |    VCC   |    3.3v    |
+|   IRReciver   |    GND   |     GND    |
+|   IRReciver   |   DATA   |     23     |
+
+|    裝置名稱    |  裝置io  | esp32-GPIO |
+|---------------|----------|------------|
+| IRTrasnmitter |    VCC   |    3.3v    |
+| IRTrasnmitter |    GND   |     GND    |
+| IRTrasnmitter |   DATA   |     32     |
+|               |          |            |
+
+![esp32 nodemcu 32s pinout](ESP32-NODEMCU-ESP-32S-Kit-pinout-low-res-mischianti-1024x599.jpg)
+
 ## 功能
 
 1. 加密的MQTT傳輸協定

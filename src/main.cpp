@@ -137,8 +137,8 @@ void loop() {
   }
   if (WiFi.status() == WL_CONNECTED) {
     screen.drawString(74, 0, "Connected", 1, 0, 1);
-    // screen.drawString(0, 16, "SSID: ", 1, 0, 1);
-    // screen.drawString(0, 32, WiFi.SSID().c_str(), 1, 0, 1);
+    screen.drawString(74, 16, "SSID: ", 1, 0, 1);
+    screen.drawString(74, 32, WiFi.SSID().c_str(), 1, 0, 1);
   }
   else {
     screen.drawString(56, 0, "Disconnected", 1, 0, 1);
