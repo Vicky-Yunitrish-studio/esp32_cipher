@@ -1,19 +1,25 @@
 #include "DHT11.h"
 
-DHT11::DHT11(uint8_t pin) : pin(pin) {
-    dht = new DHT(pin, DHT11_SENSOR);
+DHTSensor::DHTSensor(uint8_t pin, uint8_t type) : dht(pin, type), temp(0), hum(0) {}
+
+void DHTSensor::begin() {
+    dht.begin();
 }
 
-void DHT11::setup() {
-    dht->begin();
+float DHTSensor::getTemperature() {
+    temp = dht.readTemperature();
+    if (isnan(temp)) {
+        Serial.println("Failed to read temperature from DHT sensor!");
+        return 0; // Return -1 if reading fails
+    }
+    return temp;
 }
 
-float DHT11::getTemperature() {
-    float t = dht->readTemperature();
-    return isnan(t) ? 0.0 : t;
-}
-
-float DHT11::getHumidity() {
-    float h = dht->readHumidity();
-    return isnan(h) ? 0.0 : h;
+float DHTSensor::getHumidity() {
+    hum = dht.readHumidity();
+    if (isnan(hum)) {
+        Serial.println("Failed to read humidity from DHT sensor!");
+        return 0; // Return -1 if reading fails
+    }
+    return hum;
 }

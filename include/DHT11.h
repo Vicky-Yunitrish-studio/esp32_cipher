@@ -1,19 +1,20 @@
-#ifndef DHT11_H
-#define DHT11_H
-#define DHT11_SENSOR 11
+#ifndef DHTSENSOR_H
+#define DHTSENSOR_H
+
 #include <Arduino.h>
 #include <DHT.h>
 
-class DHT11 {
-private:
-    DHT* dht;
-    uint8_t pin;
+class DHTSensor {
+    public:
+        DHTSensor(uint8_t pin, uint8_t type); // Constructor
+        void begin();                         // Initialize the sensor
+        float getTemperature();               // Get the temperature
+        float getHumidity();                  // Get the humidity
 
-public:
-    DHT11(uint8_t pin);
-    void setup();
-    float getTemperature();
-    float getHumidity();
+    private:
+        DHT dht;                              // DHT sensor instance
+        float temp;                           // Store temperature
+        float hum;                            // Store humidity
 };
 
 #endif

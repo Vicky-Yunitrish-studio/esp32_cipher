@@ -19,8 +19,9 @@ int btnState = false;
 
 #define DHTPIN 14
 #define DHTTYPE DHT11
-#include <DHT.h>
-DHT dht(DHTPIN, DHTTYPE);
+#include <Arduino.h>
+#include "DHT11.h"
+DHTSensor dhtSensor(DHTPIN, DHTTYPE);
 float temp = 0;
 float hum = 0;
 
@@ -30,7 +31,7 @@ void setup()
 {
   screen.setup();
   light.setup();
-  dht.begin();
+  dhtSensor.begin();
   Serial.begin(115200);
   delay(10);
 
@@ -168,10 +169,11 @@ void loop()
   {
     screen.drawString(74, 0, "Connected", 1, 0, 1);
     screen.drawString(74, 16, "SSID: ", 1, 0, 1);
-    screen.drawString(74, 32, WiFi.SSID().c_str(), 1, 0, 1);
+    //screen.drawString(74, 32, WiFi.SSID().c_str(), 1, 0, 1);
 
-    temp = dht.readTemperature();
-    hum = dht.readHumidity();
+    temp = dhtSensor.getTemperature();
+    hum = dhtSensor.getHumidity();
+    printf("Temperature: %.1f*C, Humidity: %.1f%%\n", temp, hum);
     screen.drawString(0, 16, ("TEMP:" + String(temp) + "*C").c_str(), 1, 0, 1);
     screen.drawString(0, 32, ("HUM:" + String(hum) + "%").c_str(), 1, 0, 1);
   }
