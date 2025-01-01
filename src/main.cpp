@@ -21,6 +21,10 @@ int btnState = false;
 #include <Connect.h>
 Connect connect = Connect();
 
+#include "MQTT.h"
+MQTT mqtt;
+
+time_t mqttTimer = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -47,6 +51,7 @@ void setup() {
   screen.drawString(0, 0, "Fetching time", 1, 0, 1);
   screen.display.display();
   timer.setup();
+  mqtt.setup();
   delay(3000);
 
   // Set GPIO0 Boot button as input
@@ -68,6 +73,10 @@ void loop() {
   hum = dhtSensor.getHumidity();
   screen.drawString(0, 32, ("TEMP:" + String(temp) + "*C").c_str(), 1, 0, 1);
   screen.drawString(0, 48, ("HUM:" + String(hum) + "%").c_str(), 1, 0, 1);
+  
+  if (connect.isConnected() && timer.isTimeUp(mqttTimer, 5)) {  // Publish every 5 seconds
+    mqtt.publish(temp, hum);
+  }
   /*---------------------------------------------------------------------------*/
   if (btnState == LOW) {
     // connect.isConnected() ? 
