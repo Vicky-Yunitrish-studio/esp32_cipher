@@ -1,8 +1,6 @@
 #ifndef SCREEN_H
 #define SCREEN_H
 
-#include <Arduino.h>
-
 class Adafruit_SH1106;
 
 class Screen {
