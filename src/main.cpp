@@ -37,8 +37,6 @@ void setup() {
   {
     connect.link();
     screen.display.clearDisplay();
-    // String x = "Connecting to WiFi:" + String(connect.numberOfTries);
-    // screen.drawString(0, 0, x.c_str(), 1, 0, 1);
     screen.drawString(connect.col, connect.row, connect.status.c_str(), 1, 0, 1);
     if (connect.isConnected()) break;
     screen.display.display();
@@ -62,15 +60,14 @@ void loop() {
   screen.drawString(connect.col, 0, connect.status.c_str(), 1, 0, 1);
   screen.drawString(0, 0, timer.getTime(), 1, 0, 1);
   if (connect.isConnected()) {
-    screen.drawString(74, 16, "SSID: ", 1, 0, 1);
-    screen.drawString(74, 32, connect.ssid.c_str(), 1, 0, 1); 
+    screen.drawString(0, 16, ("SSID: " + connect.ssid).c_str(), 1, 0, 1);
     if (timer.isTimeUp(ledTimer,0.05)) light.update();
   }
   /*---------------------------------------------------------------------------*/
   temp = dhtSensor.getTemperature();
   hum = dhtSensor.getHumidity();
-  screen.drawString(0, 16, ("TEMP:" + String(temp) + "*C").c_str(), 1, 0, 1);
-  screen.drawString(0, 32, ("HUM:" + String(hum) + "%").c_str(), 1, 0, 1);
+  screen.drawString(0, 32, ("TEMP:" + String(temp) + "*C").c_str(), 1, 0, 1);
+  screen.drawString(0, 48, ("HUM:" + String(hum) + "%").c_str(), 1, 0, 1);
   /*---------------------------------------------------------------------------*/
   if (btnState == LOW) {
     // connect.isConnected() ? 
