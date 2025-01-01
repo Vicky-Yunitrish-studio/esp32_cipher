@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 
-// Forward declaration
 class Adafruit_SH1106;
 
 class Screen {

@@ -1,19 +1,18 @@
 #include <WiFi.h>
 #include <time.h>
 #include <Adafruit_SH1106.h>
-#include "Screen.h"
-#include "LightTest.h"
-
-const char *ssid = "朕的流量_與民共享";
-const char *password = "V204123456789";
-
-const char *ntpServer = "tock.stdtime.gov.tw";
-const long gmtOffset_sec = 8 * 3600; // 台灣 GMT+8
-const int daylightOffset_sec = 0;
-time_t recordedTime = 0;
-time_t currentTime = 0;
+#include <Screen.h>
 Adafruit_SH1106 dp(-1);
 Screen screen(dp);
+#include <LightTest.h>
+LightTest light(LED_BUILTIN);
+#include <Timer.h>
+Timer timer = Timer();
+time_t ledTimer = 0;
+
+const char *ssid = "Yun";
+const char *password = "0937565253";
+
 int btnGPIO = 0;
 int btnState = false;
 
@@ -24,8 +23,6 @@ int btnState = false;
 DHTSensor dhtSensor(DHTPIN, DHTTYPE);
 float temp = 0;
 float hum = 0;
-
-LightTest light(LED_BUILTIN);
 
 void setup()
 {
@@ -105,17 +102,7 @@ void setup()
       Serial.println("[WiFi] WiFi is connected!");
       Serial.print("[WiFi] IP address: ");
       Serial.println(WiFi.localIP());
-      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-      struct tm tmp;
-      if (getLocalTime(&tmp))
-      {
-        recordedTime = mktime(&tmp);
-        Serial.printf("Initial Recorded Time: %ld\n", recordedTime);
-      }
-      else
-      {
-        Serial.println("Failed to obtain initial time");
-      }
+      timer.setup();
       return;
       break;
     }
@@ -149,22 +136,8 @@ void loop()
 {
   screen.display.clearDisplay();
   btnState = digitalRead(btnGPIO);
-
-  struct tm tmp;
-  if (getLocalTime(&tmp))
-  {
-    currentTime = mktime(&tmp);
-    char x[9];
-    strncpy(x, ctime(&currentTime) + 11, 8);
-    x[8] = '\0';
-    screen.drawString(0, 0, x, 1, 0, 1);
-  }
-  else
-  {
-    Serial.println("Failed to obtain current time");
-    delay(1000);
-    return;
-  }
+  timer.loop();
+  screen.drawString(0, 0, timer.getTime(), 1, 0, 1);
   if (WiFi.status() == WL_CONNECTED)
   {
     screen.drawString(74, 0, "Connected", 1, 0, 1);
@@ -182,13 +155,9 @@ void loop()
     screen.drawString(56, 0, "Disconnected", 1, 0, 1);
   }
 
-  if (difftime(currentTime, recordedTime) >= 0.2)
+  if (timer.isTimeUp(ledTimer,0.05) && WiFi.status() == WL_CONNECTED)
   {
-    recordedTime = currentTime;
-    if (WiFi.status() == WL_CONNECTED)
-    {
-      light.update();
-    }
+    light.update();
   }
 
   if (btnState == LOW)
