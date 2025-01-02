@@ -1,11 +1,32 @@
 import paho.mqtt.client as mqtt
 from datetime import datetime
+from cryptography.fernet import Fernet  # 需要安裝: pip install cryptography
 
 # MQTT Settings
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
 MQTT_TOPIC_TEMP = "yunitrish/esp32/temperature"
 MQTT_TOPIC_HUM = "yunitrish/esp32/humidity"
+
+# Encryption settings - 使用與ESP32相同的金鑰
+KEY = b'YOUR_ENCRYPTION_KEY_HERE'  # 替換成你的金鑰
+cipher_suite = Fernet(KEY)
+
+def generate_constants(topic):
+    # 與ESP32端相同的常數生成邏輯
+    hash_values = [0x61707865, 0x3320646e, 0x79622d32, 0x6b206574]
+    for i, c in enumerate(topic):
+        hash_values[i % 4] ^= (ord(c) << ((i % 4) * 8))
+    return hash_values
+
+def decrypt_message(encrypted_msg, topic):
+    try:
+        # 根據topic更新解密參數
+        constants = generate_constants(topic)
+        # 這裡需要實現對應的解密邏輯
+        return decrypt_with_constants(encrypted_msg, constants)
+    except:
+        return encrypted_msg
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -15,7 +36,10 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     topic = msg.topic
-    value = msg.payload.decode()
+    encrypted_value = msg.payload
+    
+    # 使用topic作為解密參數
+    value = decrypt_message(encrypted_value, topic)
     
     if topic == MQTT_TOPIC_TEMP:
         print(f"[{now}] Temperature: {value}°C")

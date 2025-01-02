@@ -24,6 +24,15 @@ Connect connect = Connect();
 #include "MQTT.h"
 MQTT mqtt;
 
+#include "Encryption.h"
+
+// MQTT topics
+const char* TEMP_TOPIC = "yunitrish/esp32/temperature";
+const char* HUM_TOPIC = "yunitrish/esp32/humidity";
+
+// Global objects
+Encryption encryption;
+
 time_t mqttTimer = 0;
 
 void setup() {
@@ -51,6 +60,12 @@ void setup() {
   screen.drawString(0, 0, "Fetching time", 1, 0, 1);
   screen.display.display();
   timer.setup();
+  
+  // Initialize encryption with topic as constant
+  uint8_t initKey[32] = {0}; // 替換成你的加密金鑰
+  encryption.init(initKey);
+  encryption.setConstants(TEMP_TOPIC);
+  
   mqtt.setup();
   delay(3000);
 
@@ -75,7 +90,19 @@ void loop() {
   screen.drawString(0, 48, ("HUM:" + String(hum) + "%").c_str(), 1, 0, 1);
   
   if (connect.isConnected() && timer.isTimeUp(mqttTimer, 5)) {  // Publish every 5 seconds
-    mqtt.publish(temp, hum);
+    // Encrypt and publish temperature
+    String encryptedTemp = encryption.encrypt(String(temp));
+    mqtt.publish(TEMP_TOPIC, encryptedTemp.c_str());
+    
+    // Update constants for humidity
+    encryption.setConstants(HUM_TOPIC);
+    String encryptedHum = encryption.encrypt(String(hum));
+    mqtt.publish(HUM_TOPIC, encryptedHum.c_str());
+    
+    // Reset constants for next temperature reading
+    encryption.setConstants(TEMP_TOPIC);
+    
+    mqttTimer = timer.currentTime;
   }
   /*---------------------------------------------------------------------------*/
   if (btnState == LOW) {
