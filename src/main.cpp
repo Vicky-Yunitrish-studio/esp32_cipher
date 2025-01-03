@@ -15,23 +15,41 @@ DHTSensor dhtSensor(14, DHT11);
 float temp = 0;
 float hum = 0;
 
-int btnGPIO = 0;
-int btnState = false;
-
 #include <Connect.h>
 Connect connect = Connect();
+int btnGPIO = 0;
+int btnState = false;
 
 #include "MQTT.h"
 MQTT mqtt;
 
 #include "Encryption.h"
+#include "KeyManager.h"
 
-// MQTT topics
-const char* TEMP_TOPIC = "yunitrish/esp32/temperature";
-const char* HUM_TOPIC = "yunitrish/esp32/humidity";
+#include <WiFi.h>
+
+// Helper functions
+String getDeviceMac() {
+    return WiFi.macAddress();
+}
+
+// MQTT settings
+const char* GROUP_NAME = "group1";  // 可以改成從設定檔讀取
+String MQTT_BASE_TOPIC;
+String TEMP_TOPIC;
+String HUM_TOPIC;
+
+void setupTopics() {
+    String mac = getDeviceMac();
+    mac.replace(":", "");
+    MQTT_BASE_TOPIC = String("esp32/") + GROUP_NAME + "/" + mac;
+    TEMP_TOPIC = MQTT_BASE_TOPIC + "/temp";  // 縮短名稱
+    HUM_TOPIC = MQTT_BASE_TOPIC + "/hum";    // 縮短名稱
+}
 
 // Global objects
 Encryption encryption;
+KeyManager keyManager;
 
 time_t mqttTimer = 0;
 
@@ -61,16 +79,45 @@ void setup() {
   screen.display.display();
   timer.setup();
   
-  // Initialize encryption with topic as constant
-  uint8_t initKey[32] = {0}; // 替換成你的加密金鑰
-  encryption.init(initKey);
-  encryption.setConstants(TEMP_TOPIC);
+  
+  screen.display.clearDisplay();
+  screen.drawString(0, 0, "Loading key", 1, 0, 1);
+  screen.display.display();
+  // Initialize key manager and encryption
+  if (!keyManager.init()) {
+    screen.drawString(0, 0, "Key init failed!", 1, 0, 1);
+    screen.display.display();
+    delay(2000);
+  }
+  encryption.init(keyManager.getKey());
+  encryption.setConstants(TEMP_TOPIC.c_str());
   
   mqtt.setup();
   delay(3000);
 
   // Set GPIO0 Boot button as input
   pinMode(btnGPIO, INPUT);
+
+  // Setup MQTT topics after WiFi connection
+  setupTopics();
+  
+  // Initialize encryption with topic
+  if (!keyManager.init()) {
+      screen.drawString(0, 0, "Key init failed!", 1, 0, 1);
+      screen.display.display();
+      delay(2000);
+  }
+  encryption.init(keyManager.getKey());
+  encryption.setDeviceMac(getDeviceMac());  // Set MAC in nonce
+  encryption.setConstants(TEMP_TOPIC.c_str());
+  
+  // Show device info
+  screen.display.clearDisplay();
+  screen.drawString(0, 0, ("Device: " + getDeviceMac()).c_str(), 1, 0, 1);
+  screen.display.display();
+  delay(2000);
+  
+  mqtt.setup();
 }
 
 void loop() {
@@ -92,15 +139,15 @@ void loop() {
   if (connect.isConnected() && timer.isTimeUp(mqttTimer, 5)) {  // Publish every 5 seconds
     // Encrypt and publish temperature
     String encryptedTemp = encryption.encrypt(String(temp));
-    mqtt.publish(TEMP_TOPIC, encryptedTemp.c_str());
+    mqtt.publish(TEMP_TOPIC.c_str(), encryptedTemp.c_str());
     
     // Update constants for humidity
-    encryption.setConstants(HUM_TOPIC);
+    encryption.setConstants(HUM_TOPIC.c_str());
     String encryptedHum = encryption.encrypt(String(hum));
-    mqtt.publish(HUM_TOPIC, encryptedHum.c_str());
+    mqtt.publish(HUM_TOPIC.c_str(), encryptedHum.c_str());
     
     // Reset constants for next temperature reading
-    encryption.setConstants(TEMP_TOPIC);
+    encryption.setConstants(TEMP_TOPIC.c_str());
     
     mqttTimer = timer.currentTime;
   }

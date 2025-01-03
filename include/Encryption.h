@@ -30,6 +30,8 @@ private:
     uint32_t rotl32(uint32_t x, int n);
     void quarterRound(uint32_t& a, uint32_t& b, uint32_t& c, uint32_t& d);
 
+    void setMacInNonce(const String& mac); // Add new method
+
 public:
     Encryption();
     void init(const uint8_t* initKey);
@@ -37,4 +39,5 @@ public:
     String encrypt(const String& plaintext);
     String decrypt(const String& ciphertext);
     void updateNonce();
+    void setDeviceMac(const String& mac); // Add new public method
 };

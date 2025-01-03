@@ -17,13 +17,24 @@ void Encryption::quarterRound(uint32_t& a, uint32_t& b, uint32_t& c, uint32_t& d
     c += d; b ^= c; b = rotl32(b, 7);
 }
 
-void Encryption::setConstants(const char* topic) {
-    size_t len = strlen(topic);
-    uint32_t hash[4] = {0x61707865, 0x3320646e, 0x79622d32, 0x6b206574}; // Default values
+void Encryption::setConstants(const char* customKey) {
+    // 預期customKey長度為16
+    size_t len = strlen(customKey);
     
-    // Create unique constants based on topic
-    for(size_t i = 0; i < len; i++) {
-        hash[i % 4] ^= (topic[i] << ((i % 4) * 8));
+    // 初始化4個32位元常數
+    uint32_t hash[4] = {0, 0, 0, 0};
+    
+    // 每4個字元組成一個32位元常數
+    for(size_t i = 0; i < std::min(len, size_t(16)); i++) {
+        hash[i/4] |= (uint32_t(customKey[i]) << ((i % 4) * 8));
+    }
+    
+    // 如果輸入長度不足，使用預設值填充
+    if (len < 16) {
+        const uint32_t defaults[4] = {0x61707865, 0x3320646e, 0x79622d32, 0x6b206574};
+        for (size_t i = (len + 3)/4; i < 4; i++) {
+            hash[i] = defaults[i];
+        }
     }
     
     memcpy(constants, hash, sizeof(constants));
@@ -112,10 +123,32 @@ void Encryption::init(const uint8_t* initKey) {
     updateNonce();
 }
 
+void Encryption::setMacInNonce(const String& mac) {
+    // Use last 6 bytes of nonce for MAC address
+    // First 6 bytes remain random for uniqueness
+    uint8_t macBytes[6];
+    String cleanMac = mac;
+    cleanMac.replace(":", "");
+    
+    // Convert hex string to bytes
+    for(int i = 0; i < 6; i++) {
+        char hex[3] = {cleanMac[i*2], cleanMac[i*2+1], 0};
+        macBytes[i] = strtol(hex, nullptr, 16);
+    }
+    
+    // Copy MAC to last 6 bytes of nonce
+    memcpy(nonce + 6, macBytes, 6);
+}
+
+void Encryption::setDeviceMac(const String& mac) {
+    setMacInNonce(mac);
+}
+
 void Encryption::updateNonce() {
-    // Generate random nonce
-    for (int i = 0; i < 12; i++) {
+    // Generate random nonce for first 6 bytes only
+    for (int i = 0; i < 6; i++) {
         nonce[i] = random(256);
     }
+    // Last 6 bytes are preserved for MAC address
     counter = 1;
 }
