@@ -58,15 +58,25 @@ void setup() {
   Serial.begin(115200);
   screen.setup();
   screen.display.clearDisplay();
-  screen.drawString(0, 0, "setting up devices", 1, 0, 1);
+  
+  // Initialize config manager first
+  screen.drawString(0, 0, "Loading config", 1, 0, 1);
   screen.display.display();
+  if (!configManager.init()) {
+      screen.drawString(0, 16, "Config init failed!", 1, 0, 1);
+      screen.display.display();
+      delay(2000);
+  }
+
+  // Initialize WiFi with config settings
+  WiFi.begin(configManager.getWiFiSSID(), configManager.getWiFiPassword());
+  
+  // Rest of initialization
   light.setup();
   dhtSensor.begin();
   connect.setup();
-  delay(1000);
-
-  while (connect.numberOfTries)
-  {
+  
+  while (connect.numberOfTries) {
     connect.link();
     screen.display.clearDisplay();
     screen.drawString(connect.col, connect.row, connect.status.c_str(), 1, 0, 1);
@@ -74,12 +84,10 @@ void setup() {
     screen.display.display();
   }
   
-  
   screen.display.clearDisplay();
   screen.drawString(0, 0, "Fetching time", 1, 0, 1);
   screen.display.display();
   timer.setup();
-  
   
   screen.display.clearDisplay();
   screen.drawString(0, 0, "Loading key", 1, 0, 1);
@@ -119,19 +127,6 @@ void setup() {
   delay(2000);
   
   mqtt.setup();
-
-  // Initialize config manager first
-  screen.display.clearDisplay();
-  screen.drawString(0, 0, "Loading config", 1, 0, 1);
-  screen.display.display();
-  if (!configManager.init()) {
-      screen.drawString(0, 16, "Config init failed!", 1, 0, 1);
-      screen.display.display();
-      delay(2000);
-  }
-  
-  // 使用配置的WiFi設定
-  WiFi.begin(configManager.getWiFiSSID(), configManager.getWiFiPassword());
 }
 
 void loop() {
