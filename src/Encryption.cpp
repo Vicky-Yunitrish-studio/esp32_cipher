@@ -152,3 +152,69 @@ void Encryption::updateNonce() {
     // Last 6 bytes are preserved for MAC address
     counter = 1;
 }
+
+void Encryption::startChunkedEncryption(const String& plaintext) {
+    totalLength = plaintext.length();
+    processedLength = 0;
+    isProcessing = true;
+    processingStep = 0;
+    blockReady = false;
+    
+    processingBuffer = new uint8_t[totalLength];
+    memcpy(processingBuffer, plaintext.c_str(), totalLength);
+}
+
+bool Encryption::prepareNextBlock() {
+    if (!isProcessing) return false;
+    
+    chacha20_block(currentBlock);
+    counter++;
+    blockReady = true;
+    return true;
+}
+
+bool Encryption::processNextChunk() {
+    if (!isProcessing || processedLength >= totalLength) {
+        return false;
+    }
+
+    // 如果需要新的block
+    if (!blockReady) {
+        return true; // 下一次迴圈準備block
+    }
+
+    // 處理一個小chunk
+    size_t remainingBytes = totalLength - processedLength;
+    size_t chunkSize = min(CHUNK_SIZE, remainingBytes);
+    
+    uint8_t* keystream = (uint8_t*)currentBlock;
+    
+    // 只處理幾個字節
+    for (size_t i = 0; i < chunkSize; i++) {
+        processingBuffer[processedLength + i] ^= keystream[processingStep + i];
+    }
+    
+    processingStep += chunkSize;
+    processedLength += chunkSize;
+    
+    // 如果當前block用完了
+    if (processingStep >= 64) {
+        processingStep = 0;
+        blockReady = false;
+    }
+    
+    return processedLength < totalLength;
+}
+
+String Encryption::finishEncryption() {
+    String result;
+    for (size_t i = 0; i < totalLength; i++) {
+        char hex[3];
+        sprintf(hex, "%02x", processingBuffer[i]);
+        result += hex;
+    }
+    
+    delete[] processingBuffer;
+    isProcessing = false;
+    return result;
+}

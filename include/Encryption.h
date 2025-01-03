@@ -32,7 +32,19 @@ private:
 
     void setMacInNonce(const String& mac); // Add new method
 
+    // Chunk processing state
+    static const size_t CHUNK_SIZE = 4; // 減小到4字節
+    uint8_t* processingBuffer;
+    size_t totalLength;
+    size_t processedLength;
+    bool isProcessing;
+    
+    // 增加狀態追蹤
+    uint8_t processingStep;
+    uint32_t currentBlock[16];
+
 public:
+    bool blockReady;
     Encryption();
     void init(const uint8_t* initKey);
     void setConstants(const char* topic);  // New method
@@ -40,4 +52,11 @@ public:
     String decrypt(const String& ciphertext);
     void updateNonce();
     void setDeviceMac(const String& mac); // Add new public method
+
+    void startChunkedEncryption(const String& plaintext);
+    bool processNextChunk();
+    bool prepareNextBlock();
+    String finishEncryption();
+    bool isEncryptionInProgress() const { return isProcessing; }
+    float getProgress() const { return (float)processedLength / totalLength * 100; }
 };
