@@ -27,6 +27,7 @@ MQTT mqtt;
 #include "KeyManager.h"
 
 #include <WiFi.h>
+#include "ConfigManager.h"
 
 // Helper functions
 String getDeviceMac() {
@@ -34,22 +35,22 @@ String getDeviceMac() {
 }
 
 // MQTT settings
-const char* GROUP_NAME = "group1";  // 可以改成從設定檔讀取
 String MQTT_BASE_TOPIC;
 String TEMP_TOPIC;
 String HUM_TOPIC;
 
-void setupTopics() {
-    String mac = getDeviceMac();
-    mac.replace(":", "");
-    MQTT_BASE_TOPIC = String("esp32/") + GROUP_NAME + "/" + mac;
-    TEMP_TOPIC = MQTT_BASE_TOPIC + "/temp";  // 縮短名稱
-    HUM_TOPIC = MQTT_BASE_TOPIC + "/hum";    // 縮短名稱
-}
-
 // Global objects
 Encryption encryption;
 KeyManager keyManager;
+ConfigManager configManager;
+
+void setupTopics() {
+    String mac = getDeviceMac();
+    mac.replace(":", "");
+    MQTT_BASE_TOPIC = String("esp32/") + configManager.getGroupName() + "/" + mac;
+    TEMP_TOPIC = MQTT_BASE_TOPIC + "/temp";
+    HUM_TOPIC = MQTT_BASE_TOPIC + "/hum";
+}
 
 time_t mqttTimer = 0;
 
@@ -118,6 +119,19 @@ void setup() {
   delay(2000);
   
   mqtt.setup();
+
+  // Initialize config manager first
+  screen.display.clearDisplay();
+  screen.drawString(0, 0, "Loading config", 1, 0, 1);
+  screen.display.display();
+  if (!configManager.init()) {
+      screen.drawString(0, 16, "Config init failed!", 1, 0, 1);
+      screen.display.display();
+      delay(2000);
+  }
+  
+  // 使用配置的WiFi設定
+  WiFi.begin(configManager.getWiFiSSID(), configManager.getWiFiPassword());
 }
 
 void loop() {
