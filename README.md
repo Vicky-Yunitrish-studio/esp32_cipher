@@ -3,6 +3,7 @@
 [期末專題報告](https://docs.google.com/presentation/d/1dgE1UflbfET3RkeLtujjp4L4WDkh4RkqZj0S-r6HGY4/edit?usp=sharing)
 
 ## 組員
+
 - 林昀佑
 - 戴育琪
 - 王郁琁
@@ -26,6 +27,7 @@
 ## 系統架構
 
 ### 通訊協定
+
 - MQTT over TCP/IP
 - Broker: HiveMQ (broker.hivemq.com)
 - Port: 1883
@@ -33,6 +35,7 @@
   - 例: esp32/group1/AABBCCDD/temp
 
 ### 加密系統
+
 1. 加密演算法: ChaCha20
    - 使用自定義常數 (Constants)
    - MAC地址整合到 Nonce
@@ -95,6 +98,7 @@
    - 錯誤處理
 
 2. 使用方式
+
 ```bash
 # 監聽預設群組
 python mqtt_test.py
@@ -117,6 +121,7 @@ python mqtt_test.py --group group2
    - 預設值保護
 
 ## 開發工具
+
 - 語言: C++ (ESP32), Python (接收端)
 - 開發環境: PlatformIO
 - 主要依賴:
