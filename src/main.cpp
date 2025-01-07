@@ -56,6 +56,8 @@ time_t mqttTimer = 0;
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("\nESP32 Cipher Device Starting...");
+  
   screen.setup();
   screen.display.clearDisplay();
   
@@ -98,7 +100,19 @@ void setup() {
     screen.display.display();
     delay(2000);
   }
-  encryption.init(keyManager.getKey());
+  
+  // 顯示當前使用的金鑰
+  const uint8_t* key = keyManager.getKey();
+  Serial.println("\nCurrent Encryption Key:");
+  for(int i = 0; i < 32; i++) {
+    if(key[i] < 0x10) Serial.print("0"); // 補零
+    Serial.print(key[i], HEX);
+    if((i+1) % 16 == 0) Serial.println();
+    else Serial.print(" ");
+  }
+  Serial.println();
+  
+  encryption.init(key);
   encryption.setConstants(TEMP_TOPIC.c_str());
   
   mqtt.setup();
@@ -122,7 +136,8 @@ void setup() {
   
   // Show device info
   screen.display.clearDisplay();
-  screen.drawString(0, 0, ("Device: " + getDeviceMac()).c_str(), 1, 0, 1);
+  screen.drawString(0, 0, ("Device: " + String(getDeviceMac())).c_str(), 1, 0, 1);
+  screen.drawString(0, 8, ("Group: " + String(configManager.getGroupName())).c_str(), 1, 0, 1);
   screen.display.display();
   delay(2000);
   
@@ -133,8 +148,8 @@ void setup() {
 bool needProcessTemp = false;
 bool needProcessHum = false;
 
-// 添加常量定義
-const int MAX_ENCRYPTION_STEPS_PER_LOOP = 2;  // 每次循環最多執行的加密步驟數
+// 修改常量定義
+const int MAX_ENCRYPTION_STEPS_PER_LOOP = 16;  // 增加每次循環的加密步驟數
 
 // 添加顯示相關變量
 String lastTimeStr;
@@ -174,6 +189,7 @@ void loop() {
     screen.drawString(connect.col, 0, connect.status.c_str(), 1, 0, 1);
     
     if (connect.isConnected()) {
+      screen.drawString(0, 8, ("Group: " + String(configManager.getGroupName())).c_str(), 1, 0, 1);
       screen.drawString(0, 16, ("SSID: " + connect.ssid).c_str(), 1, 0, 1);
     }
     
@@ -188,58 +204,36 @@ void loop() {
     light.update();
   }
   
-  // 加密相關操作
-  if (connect.isConnected() && timer.isTimeUp(mqttTimer, 10)) {
-    needProcessTemp = true;
+  // 修改為直接發送數據，不進行加密
+  if (connect.isConnected() && timer.isTimeUp(mqttTimer, 1)) {
+    // 格式化溫度和濕度為2位小數
+    String tempStr = String(temp, 2);
+    String humStr = String(hum, 2);
+    
+    // 直接發布數據
+    mqtt.publish(TEMP_TOPIC.c_str(), tempStr.c_str());
+    mqtt.publish(HUM_TOPIC.c_str(), humStr.c_str());
+    
+    // 更新計時器
     mqttTimer = timer.currentTime;
   }
 
-  // 處理加密，使用單獨的進度顯示更新
-  if (encryption.isEncryptionInProgress()) {
-    String currentProgress = String(encryption.getProgress()) + "%";
-    if (currentProgress != lastEncryptionProgress) {
-      lastEncryptionProgress = currentProgress;
-      // 只更新進度行，不清除整個螢幕
-      screen.drawString(0, 56, 
-        (String(needProcessTemp ? "Temp" : "Hum") + " Encrypting: " + 
-         currentProgress).c_str(), 
-        1, 0, 1);
+  // 更新顯示
+  if (needDisplayUpdate) {
+    screen.display.clearDisplay();
+    
+    screen.drawString(0, 0, lastTimeStr.c_str(), 1, 0, 1);
+    screen.drawString(connect.col, 0, connect.status.c_str(), 1, 0, 1);
+    
+    if (connect.isConnected()) {
+        screen.drawString(0, 8, ("Group: " + String(configManager.getGroupName())).c_str(), 1, 0, 1);
+        screen.drawString(0, 16, ("SSID: " + connect.ssid).c_str(), 1, 0, 1);
     }
     
-    // 加密處理邏輯保持不變
-    int encryptionSteps = 0;
-    while (encryptionSteps < MAX_ENCRYPTION_STEPS_PER_LOOP) {
-      if (!encryption.isEncryptionInProgress()) {
-        if (needProcessTemp) {
-          encryption.setConstants(TEMP_TOPIC.c_str());
-          encryption.startChunkedEncryption(String(temp));
-        }
-        break;
-      }
-
-      if (!encryption.blockReady) {
-        encryption.prepareNextBlock();
-        encryptionSteps++;
-      } else if (!encryption.processNextChunk()) {
-        String encryptedData = encryption.finishEncryption();
-        
-        if (needProcessTemp) {
-          mqtt.publish(TEMP_TOPIC.c_str(), encryptedData.c_str());
-          needProcessTemp = false;
-          needProcessHum = true;
-        } else if (needProcessHum) {
-          mqtt.publish(HUM_TOPIC.c_str(), encryptedData.c_str());
-          needProcessHum = false;
-        }
-        
-        if (needProcessHum) {
-          encryption.setConstants(HUM_TOPIC.c_str());
-          encryption.startChunkedEncryption(String(hum));
-        }
-        break;
-      }
-      encryptionSteps++;
-    }
+    screen.drawString(0, 32, ("TEMP:" + lastTempStr + "*C").c_str(), 1, 0, 1);
+    screen.drawString(0, 48, ("HUM:" + lastHumStr + "%").c_str(), 1, 0, 1);
+    
+    needDisplayUpdate = false;
   }
 
   // 按鈕處理
