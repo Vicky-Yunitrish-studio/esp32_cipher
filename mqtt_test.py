@@ -7,6 +7,12 @@ from tkinter import ttk, scrolledtext
 from threading import Thread, Lock
 import queue
 import traceback  # 添加 traceback 導入
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+import matplotlib.dates as mdates
+from collections import deque
+from datetime import datetime, timedelta
 
 # MQTT Settings
 MQTT_BROKER = "broker.hivemq.com"
@@ -202,6 +208,8 @@ class MQTTSubscriber:
         self.message_queue = queue.Queue()
         self.data_lock = Lock()
         self.device_data = {}  # 存儲設備數據
+        self.data_history = {}  # 存儲歷史數據
+        self.history_length = 50  # 保存最近50個數據點
         print(f"Monitoring topics: esp32/{GROUP_NAME}/#")
 
     def on_connect(self, client, userdata, flags, rc):
@@ -239,7 +247,7 @@ class MQTTSubscriber:
 
     def on_message(self, client, userdata, msg):
         try:
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now()
             topic = msg.topic
             payload = msg.payload.decode()
             
@@ -266,6 +274,23 @@ class MQTTSubscriber:
                     self.device_data[mac][measurement] = payload
                     self.device_data[mac]['last_update'] = now
                 
+                # 初始化歷史數據結構
+                if mac not in self.data_history:
+                    self.data_history[mac] = {
+                        'temp': {'times': deque(maxlen=self.history_length),
+                                'values': deque(maxlen=self.history_length)},
+                        'hum': {'times': deque(maxlen=self.history_length),
+                               'values': deque(maxlen=self.history_length)}
+                    }
+                
+                # 更新歷史數據
+                try:
+                    value = float(payload)
+                    self.data_history[mac][measurement]['times'].append(now)
+                    self.data_history[mac][measurement]['values'].append(value)
+                except ValueError:
+                    print(f"Could not convert payload to float: {payload}")
+
                 # 發送到消息隊列以更新 UI
                 device_name = DEVICE_NAMES.get(mac, mac)
                 self.message_queue.put((now, "DATA", 
@@ -312,6 +337,8 @@ class MQTTUI:
         
         # 綁定視窗大小改變事件
         self.root.bind('<Configure>', self.on_window_resize)
+        
+        self.plot_update_interval = 1000  # 圖表更新間隔（毫秒）
         
         self.setup_ui()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -366,9 +393,48 @@ class MQTTUI:
         self.log_text = scrolledtext.ScrolledText(log_frame, height=10, font=('TkDefaultFont', 10))
         self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
+        # 修改圖表區域
+        charts_frame = ttk.LabelFrame(self.main_frame, text="Sensor Data Charts", padding="5")
+        charts_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # 創建左右分隔的框架
+        left_chart_frame = ttk.Frame(charts_frame)
+        left_chart_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5)
+        
+        right_chart_frame = ttk.Frame(charts_frame)
+        right_chart_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5)
+        
+        # 設置列/行權重
+        charts_frame.grid_columnconfigure(0, weight=1)
+        charts_frame.grid_columnconfigure(1, weight=1)
+        
+        # 創建溫度圖表
+        self.temp_fig = Figure(figsize=(4, 3), dpi=100)
+        self.temp_ax = self.temp_fig.add_subplot(111)
+        self.temp_canvas = FigureCanvasTkAgg(self.temp_fig, master=left_chart_frame)
+        self.temp_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        # 創建濕度圖表
+        self.hum_fig = Figure(figsize=(4, 3), dpi=100)
+        self.hum_ax = self.hum_fig.add_subplot(111)
+        self.hum_canvas = FigureCanvasTkAgg(self.hum_fig, master=right_chart_frame)
+        self.hum_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        # 設置圖表的初始格式
+        self.temp_ax.set_title('Temperature History')
+        self.temp_ax.set_xlabel('Time')
+        self.temp_ax.set_ylabel('Temperature (°C)')
+        self.temp_ax.grid(True)
+        
+        self.hum_ax.set_title('Humidity History')
+        self.hum_ax.set_xlabel('Time')
+        self.hum_ax.set_ylabel('Humidity (%)')
+        self.hum_ax.grid(True)
+
         # 設置框架的權重
         self.main_frame.grid_rowconfigure(1, weight=3)  # 設備列表佔較大空間
         self.main_frame.grid_rowconfigure(2, weight=2)  # 日誌區域次之
+        self.main_frame.grid_rowconfigure(3, weight=3)  # 給圖表區域分配空間
         self.main_frame.grid_columnconfigure(0, weight=1)
         
         devices_frame.grid_columnconfigure(0, weight=1)
@@ -433,6 +499,63 @@ class MQTTUI:
         # 定期更新
         self.root.after(100, self.update_ui)
 
+    def update_chart(self):
+        try:
+            # 清除圖表
+            self.temp_ax.clear()
+            self.hum_ax.clear()
+            
+            # 為每個設備繪製溫度曲線
+            for mac, data in self.subscriber.data_history.items():
+                device_name = DEVICE_NAMES.get(mac, mac)
+                
+                # 繪製溫度數據
+                temp_times = data['temp']['times']
+                temp_values = data['temp']['values']
+                if temp_times and temp_values:
+                    self.temp_ax.plot(temp_times, temp_values, '-o', 
+                                    label=device_name, markersize=4)
+                
+                # 繪製濕度數據
+                hum_times = data['hum']['times']
+                hum_values = data['hum']['values']
+                if hum_times and hum_values:
+                    self.hum_ax.plot(hum_times, hum_values, '-o', 
+                                   label=device_name, markersize=4)
+            
+            # 設置溫度圖表格式
+            self.temp_ax.set_title('Temperature History')
+            self.temp_ax.set_xlabel('Time')
+            self.temp_ax.set_ylabel('Temperature (°C)')
+            self.temp_ax.grid(True)
+            self.temp_ax.legend()
+            
+            # 設置濕度圖表格式
+            self.hum_ax.set_title('Humidity History')
+            self.hum_ax.set_xlabel('Time')
+            self.hum_ax.set_ylabel('Humidity (%)')
+            self.hum_ax.grid(True)
+            self.hum_ax.legend()
+            
+            # 格式化時間軸
+            for ax in [self.temp_ax, self.hum_ax]:
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+                
+            # 自動調整日期標籤角度
+            self.temp_fig.autofmt_xdate()
+            self.hum_fig.autofmt_xdate()
+            
+            # 更新畫布
+            self.temp_canvas.draw()
+            self.hum_canvas.draw()
+            
+        except Exception as e:
+            print(f"Chart update error: {e}")
+            traceback.print_exc()
+        
+        # 安排下一次更新
+        self.root.after(self.plot_update_interval, self.update_chart)
+
     def on_closing(self):
         print("Closing application...")
         try:
@@ -442,6 +565,8 @@ class MQTTUI:
 
     def run(self):
         self.subscriber.start()
+        # 開始定期更新圖表
+        self.update_chart()
         self.root.mainloop()
 
 if __name__ == "__main__":

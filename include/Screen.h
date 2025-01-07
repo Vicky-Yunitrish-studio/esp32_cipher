@@ -1,6 +1,4 @@
-#ifndef SCREEN_H
-#define SCREEN_H
-
+#pragma once
 class Adafruit_SH1106;
 
 class Screen {
@@ -18,5 +16,3 @@ public:
     void loop();
     void drawString(int16_t x, int16_t y, const char* str, uint16_t color, uint16_t bg, uint8_t size);
 };
-
-#endif

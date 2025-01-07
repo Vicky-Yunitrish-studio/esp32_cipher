@@ -1,6 +1,4 @@
-#ifndef DHTSENSOR_H
-#define DHTSENSOR_H
-
+#pragma once
 #include <Arduino.h>
 #include <DHT.h>
 
@@ -16,5 +14,3 @@ class DHTSensor {
         float temp;                           // Store temperature
         float hum;                            // Store humidity
 };
-
-#endif

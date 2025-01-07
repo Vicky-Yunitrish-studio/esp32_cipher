@@ -1,6 +1,4 @@
-#ifndef MQTT_H
-#define MQTT_H
-
+#pragma once
 #include <PubSubClient.h>
 #include <WiFiClient.h>
 
@@ -17,5 +15,3 @@ public:
     void loop();
     bool isConnected() { return client.connected(); }
 };
-
-#endif

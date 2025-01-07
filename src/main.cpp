@@ -23,36 +23,8 @@ int btnState = false;
 #include "MQTT.h"
 MQTT mqtt;
 
-#include "Encryption.h"
-#include "KeyManager.h"
-
-#include <WiFi.h>
-#include "ConfigManager.h"
-
-// Helper functions
-String getDeviceMac() {
-    return WiFi.macAddress();
-}
-
-// MQTT settings
-String MQTT_BASE_TOPIC;
-String TEMP_TOPIC;
-String HUM_TOPIC;
-
-// Global objects
-Encryption encryption;
-KeyManager keyManager;
-ConfigManager configManager;
-
-void setupTopics() {
-    String mac = getDeviceMac();
-    mac.replace(":", "");
-    MQTT_BASE_TOPIC = String("esp32/") + configManager.getGroupName() + "/" + mac;
-    TEMP_TOPIC = MQTT_BASE_TOPIC + "/temp";
-    HUM_TOPIC = MQTT_BASE_TOPIC + "/hum";
-}
-
-time_t mqttTimer = 0;
+#include "StorageManager.h"
+StorageManager storage;
 
 void setup() {
   Serial.begin(115200);
@@ -61,17 +33,17 @@ void setup() {
   screen.setup();
   screen.display.clearDisplay();
   
-  // Initialize config manager first
+  // Initialize storage manager
   screen.drawString(0, 0, "Loading config", 1, 0, 1);
   screen.display.display();
-  if (!configManager.init()) {
-      screen.drawString(0, 16, "Config init failed!", 1, 0, 1);
+  if (!storage.init()) {
+      screen.drawString(0, 16, "Storage init failed!", 1, 0, 1);
       screen.display.display();
       delay(2000);
   }
 
   // Initialize WiFi with config settings
-  WiFi.begin(configManager.getWiFiSSID(), configManager.getWiFiPassword());
+  WiFi.begin(storage.getWiFiSSID(), storage.getWiFiPassword());
   
   // Rest of initialization
   light.setup();
@@ -94,145 +66,81 @@ void setup() {
   screen.display.clearDisplay();
   screen.drawString(0, 0, "Loading key", 1, 0, 1);
   screen.display.display();
-  // Initialize key manager and encryption
-  if (!keyManager.init()) {
-    screen.drawString(0, 0, "Key init failed!", 1, 0, 1);
-    screen.display.display();
-    delay(2000);
-  }
-  
-  // 顯示當前使用的金鑰
-  const uint8_t* key = keyManager.getKey();
-  Serial.println("\nCurrent Encryption Key:");
-  for(int i = 0; i < 32; i++) {
-    if(key[i] < 0x10) Serial.print("0"); // 補零
-    Serial.print(key[i], HEX);
-    if((i+1) % 16 == 0) Serial.println();
-    else Serial.print(" ");
-  }
-  Serial.println();
-  
-  encryption.init(key);
-  encryption.setConstants(TEMP_TOPIC.c_str());
-  
   mqtt.setup();
   delay(3000);
 
   // Set GPIO0 Boot button as input
   pinMode(btnGPIO, INPUT);
 
-  // Setup MQTT topics after WiFi connection
-  setupTopics();
-  
-  // Initialize encryption with topic
-  if (!keyManager.init()) {
-      screen.drawString(0, 0, "Key init failed!", 1, 0, 1);
-      screen.display.display();
-      delay(2000);
-  }
-  encryption.init(keyManager.getKey());
-  encryption.setDeviceMac(getDeviceMac());  // Set MAC in nonce
-  encryption.setConstants(TEMP_TOPIC.c_str());
-  
   // Show device info
   screen.display.clearDisplay();
-  screen.drawString(0, 0, ("Device: " + String(getDeviceMac())).c_str(), 1, 0, 1);
-  screen.drawString(0, 8, ("Group: " + String(configManager.getGroupName())).c_str(), 1, 0, 1);
+  screen.drawString(0, 0, ("Device: " + storage.getDeviceMac()).c_str(), 1, 0, 1);  // Updated to use StorageManager
+  screen.drawString(0, 8, ("Group: " + String(storage.getGroupName())).c_str(), 1, 0, 1);
   screen.display.display();
   delay(2000);
   
   mqtt.setup();
+
+  // Create timer events
+  timer.createEvent("display", 200);
+  timer.createEvent("sensor", 2000);
+  timer.createEvent("mqtt", 5000);
+  timer.createEvent("time", 1000);
+  timer.createEvent("led", 50); // 0.05 seconds
 }
-
-// 增加狀態控制變量
-bool needProcessTemp = false;
-bool needProcessHum = false;
-
-// 修改常量定義
-const int MAX_ENCRYPTION_STEPS_PER_LOOP = 16;  // 增加每次循環的加密步驟數
-
-// 添加顯示相關變量
-String lastTimeStr;
-String lastTempStr;
-String lastHumStr;
-String lastEncryptionProgress;
 bool needDisplayUpdate = false;
-
 void loop() {
-  // 讀取所有輸入但不立即顯示
+  unsigned long currentMillis = millis();
+  
+  // 按鈕讀取和WiFi狀態更新
   btnState = digitalRead(btnGPIO);
-  timer.loop();
+  connect.link();  // 確保WiFi保持連接
   
-  // 檢查是否需要更新各個顯示元素
-  String currentTimeStr = timer.getTime();
-  if (currentTimeStr != lastTimeStr) {
-    lastTimeStr = currentTimeStr;
-    needDisplayUpdate = true;
+  // 更新時間
+  if (timer.getEvent("time")->isReady()) {
+    timer.loop();  // 更新時間
+    needDisplayUpdate = true;  // 強制更新顯示
   }
   
-  String currentTempStr = String(dhtSensor.getTemperature());
-  String currentHumStr = String(dhtSensor.getHumidity());
-  if (currentTempStr != lastTempStr || currentHumStr != lastHumStr) {
-    lastTempStr = currentTempStr;
-    lastHumStr = currentHumStr;
-    temp = currentTempStr.toFloat();
-    hum = currentHumStr.toFloat();
+  // 定時讀取傳感器數據
+  if (timer.getEvent("sensor")->isReady()) {
+    temp = dhtSensor.getTemperature();
+    hum = dhtSensor.getHumidity();
     needDisplayUpdate = true;
   }
 
-  // 只在需要時才清除和更新顯示
-  if (needDisplayUpdate) {
-    screen.display.clearDisplay();
-    
-    // 更新所有顯示內容
-    screen.drawString(0, 0, lastTimeStr.c_str(), 1, 0, 1);
-    screen.drawString(connect.col, 0, connect.status.c_str(), 1, 0, 1);
-    
-    if (connect.isConnected()) {
-      screen.drawString(0, 8, ("Group: " + String(configManager.getGroupName())).c_str(), 1, 0, 1);
-      screen.drawString(0, 16, ("SSID: " + connect.ssid).c_str(), 1, 0, 1);
-    }
-    
-    screen.drawString(0, 32, ("TEMP:" + lastTempStr + "*C").c_str(), 1, 0, 1);
-    screen.drawString(0, 48, ("HUM:" + lastHumStr + "%").c_str(), 1, 0, 1);
-    
-    needDisplayUpdate = false;
-  }
-
-  // LED更新不影響螢幕顯示
-  if (connect.isConnected() && timer.isTimeUp(ledTimer, 0.05)) {
+  // LED更新
+  if (connect.isConnected() && timer.getEvent("led")->isReady()) {
     light.update();
   }
   
-  // 修改為直接發送數據，不進行加密
-  if (connect.isConnected() && timer.isTimeUp(mqttTimer, 1)) {
-    // 格式化溫度和濕度為2位小數
+  // Update MQTT publish to use StorageManager's topics
+  if (connect.isConnected() && timer.getEvent("mqtt")->isReady()) {
     String tempStr = String(temp, 2);
     String humStr = String(hum, 2);
     
-    // 直接發布數據
-    mqtt.publish(TEMP_TOPIC.c_str(), tempStr.c_str());
-    mqtt.publish(HUM_TOPIC.c_str(), humStr.c_str());
-    
-    // 更新計時器
-    mqttTimer = timer.currentTime;
+    mqtt.publish(storage.getMqttTempTopic().c_str(), tempStr.c_str());
+    mqtt.publish(storage.getMqttHumTopic().c_str(), humStr.c_str());
   }
 
-  // 更新顯示
-  if (needDisplayUpdate) {
+  // 顯示更新
+  if (needDisplayUpdate && timer.getEvent("display")->isReady()) {
     screen.display.clearDisplay();
     
-    screen.drawString(0, 0, lastTimeStr.c_str(), 1, 0, 1);
+    // 獲取最新時間
+    String currentTimeStr = timer.getTime();
+    screen.drawString(0, 0, currentTimeStr.c_str(), 1, 0, 1);
     screen.drawString(connect.col, 0, connect.status.c_str(), 1, 0, 1);
     
     if (connect.isConnected()) {
-        screen.drawString(0, 8, ("Group: " + String(configManager.getGroupName())).c_str(), 1, 0, 1);
-        screen.drawString(0, 16, ("SSID: " + connect.ssid).c_str(), 1, 0, 1);
+      screen.drawString(0, 8, ("Group: " + String(storage.getGroupName())).c_str(), 1, 0, 1);
+      screen.drawString(0, 16, ("SSID: " + connect.ssid).c_str(), 1, 0, 1);
     }
     
-    screen.drawString(0, 32, ("TEMP:" + lastTempStr + "*C").c_str(), 1, 0, 1);
-    screen.drawString(0, 48, ("HUM:" + lastHumStr + "%").c_str(), 1, 0, 1);
+    screen.drawString(0, 32, ("TEMP:" + String(temp, 1) + "*C").c_str(), 1, 0, 1);
+    screen.drawString(0, 48, ("HUM:" + String(hum, 1) + "%").c_str(), 1, 0, 1);
     
+    screen.display.display();
     needDisplayUpdate = false;
   }
 
@@ -240,9 +148,6 @@ void loop() {
   if (btnState == LOW) {
     connect.disConnect();
     delay(200);
-    needDisplayUpdate = true;  // 確保狀態改變後更新顯示
+    needDisplayUpdate = true;
   }
-
-  // 每次循環結束時更新顯示
-  screen.display.display();
 }
