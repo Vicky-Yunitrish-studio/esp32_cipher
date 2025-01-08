@@ -145,3 +145,13 @@ void StorageManager::setupTopics() {
     mqttTempTopic = mqttBaseTopic + "/temp";
     mqttHumTopic = mqttBaseTopic + "/hum";
 }
+
+String StorageManager::getMqttTempTopic() {
+    // 加上前綴 duel_cipher32/
+    return String("duel_cipher32/") + getGroupName() + "/" + getDeviceMac() + "/temperature";
+}
+
+String StorageManager::getMqttHumTopic() {
+    // 加上前綴 duel_cipher32/
+    return String("duel_cipher32/") + getGroupName() + "/" + getDeviceMac() + "/humidity";
+}

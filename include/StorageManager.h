@@ -44,6 +44,6 @@ public:
     const String& getDeviceMac() const { return deviceMac; }
     void setupTopics();
     const String& getMqttBaseTopic() const { return mqttBaseTopic; }
-    const String& getMqttTempTopic() const { return mqttTempTopic; }
-    const String& getMqttHumTopic() const { return mqttHumTopic; }
+    String getMqttTempTopic();
+    String getMqttHumTopic();
 };
