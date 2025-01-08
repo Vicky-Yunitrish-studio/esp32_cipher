@@ -10,8 +10,9 @@ StorageManager::StorageManager() : initialized(false) {
     memset(groupName, 0, sizeof(groupName));
     memset(wifiSSID, 0, sizeof(wifiSSID));
     memset(wifiPassword, 0, sizeof(wifiPassword));
-    deviceMac = WiFi.macAddress();
-    deviceMac.replace(":", "");
+    String mac = WiFi.macAddress();
+    mac.replace(":", "");  // 移除所有冒號
+    deviceMac = mac.c_str();  // 保存無冒號的MAC地址
 }
 
 bool StorageManager::init(const char* defaultGroup, const char* defaultSSID, const char* defaultPassword) {
@@ -147,11 +148,9 @@ void StorageManager::setupTopics() {
 }
 
 String StorageManager::getMqttTempTopic() {
-    // 加上前綴 duel_cipher32/
-    return String("duel_cipher32/") + getGroupName() + "/" + getDeviceMac() + "/temperature";
+    return String("cipher32/") + getGroupName() + "/" + getDeviceMac() + "/temp";
 }
 
 String StorageManager::getMqttHumTopic() {
-    // 加上前綴 duel_cipher32/
-    return String("duel_cipher32/") + getGroupName() + "/" + getDeviceMac() + "/humidity";
+    return String("cipher32/") + getGroupName() + "/" + getDeviceMac() + "/hum";
 }

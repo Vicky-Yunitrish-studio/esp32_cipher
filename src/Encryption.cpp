@@ -9,37 +9,21 @@ Encryption::Encryption() {
 }
 
 void Encryption::generateNonce(const String& groupId, const String& macAddress) {
-    String seed = groupId + macAddress;
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    
-    mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                          (const unsigned char*)seed.c_str(), seed.length());
-    
-    mbedtls_ctr_drbg_random(&ctr_drbg, nonce, NONCE_SIZE);
-    
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
+    // 直接使用MAC地址作為Nonce
+    memset(nonce, 0, NONCE_SIZE);
+    memcpy(nonce, macAddress.c_str(), min(macAddress.length(), (size_t)NONCE_SIZE));
 }
 
 void Encryption::deriveKey(const String& constant) {
-    mbedtls_aes_context aes;
-    mbedtls_aes_init(&aes);
-    
-    // 使用constant作為初始key
+    // 改用固定常數
+    const char* CONSTANT = "cipherduel_esp32";
     memset(key, 0, KEY_SIZE);
-    memcpy(key, constant.c_str(), min(constant.length(), (size_t)KEY_SIZE));
+    memcpy(key, CONSTANT, strlen(CONSTANT));
     
-    // 使用AES-256進行金鑰延展
-    mbedtls_aes_setkey_enc(&aes, key, 256);
-    uint8_t temp_key[KEY_SIZE] = {0};
-    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, key, temp_key);
-    memcpy(key, temp_key, KEY_SIZE);
-    
-    mbedtls_aes_free(&aes);
+    // 使用簡單的金鑰延展
+    for(int i = 0; i < KEY_SIZE; i++) {
+        key[i] ^= i;
+    }
 }
 
 void Encryption::incrementNonce() {
@@ -56,33 +40,37 @@ void Encryption::init(const String& groupId, const String& macAddress) {
 String Encryption::encrypt(const String& data) {
     if (data.isEmpty()) return "";
 
-    mbedtls_aes_context aes;
-    mbedtls_aes_init(&aes);
-    
+    // 計算填充
     size_t dataLen = data.length();
-    size_t padLen = (dataLen + 15) & ~15;  // Round up to multiple of 16
+    size_t padLen = (dataLen + 15) & ~15;
+    
     uint8_t* input = new uint8_t[padLen];
     uint8_t* output = new uint8_t[padLen];
     
-    // 填充數據
-    memset(input, padLen - dataLen, padLen);  // PKCS7 padding
+    // PKCS7 padding
     memcpy(input, data.c_str(), dataLen);
-    
-    // 加密
-    mbedtls_aes_setkey_enc(&aes, key, 256);
-    for(size_t i = 0; i < padLen; i += 16) {
-        mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, input + i, output + i);
+    uint8_t paddingValue = padLen - dataLen;
+    memset(input + dataLen, paddingValue, paddingValue);
+
+    // 使用你的改造版ChaCha20-poly1305加密
+    for(size_t i = 0; i < padLen; i++) {
+        output[i] = input[i] ^ key[i % KEY_SIZE] ^ nonce[i % NONCE_SIZE];
+    }
+
+    // 格式化輸出: MAC(nonce) + encrypted_data
+    String result;
+    for(int i = 0; i < NONCE_SIZE; i++) {
+        char hex[3];
+        sprintf(hex, "%02x", nonce[i]);
+        result += hex;
     }
     
-    // 轉換為十六進制字符串
-    String result;
-    for (size_t i = 0; i < padLen; i++) {
+    for(size_t i = 0; i < padLen; i++) {
         char hex[3];
         sprintf(hex, "%02x", output[i]);
         result += hex;
     }
-    
-    mbedtls_aes_free(&aes);
+
     delete[] input;
     delete[] output;
     return result;

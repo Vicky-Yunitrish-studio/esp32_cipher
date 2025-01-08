@@ -69,22 +69,25 @@ void MQTT::encryptionTaskFunction(void* parameter) {
 
 void MQTT::publish(const char* topic, const char* payload) {
     if (encryptionEnabled) {
-        EncryptionJob job;
-        job.data = String(payload);
-        // 主題已經由StorageManager以正確格式提供，直接使用
-        job.topic = String(topic);
-        job.isPublish = true;
-        xQueueSend(encryptionQueue, &job, portMAX_DELAY);
-    } else {
-        bool success = client.publish(topic, payload);
+        String encryptedData = encryption.encrypt(String(payload));
+        
+        // 使用無冒號的MAC地址
+        String mac = WiFi.macAddress();
+        mac.replace(":", "");
+        
+        String message = "{\"data\":\"" + encryptedData + "\",";
+        message += "\"mac\":\"" + mac + "\",";
+        message += "\"timestamp\":" + String(millis()) + "}";
+        
+        bool success = client.publish(topic, message.c_str());
         if (!success) {
             Serial.println("MQTT publish failed");
             return;
         }
-        client.loop();
-        // 記錄發布時的主題和內容
-        Serial.printf("MQTT published at %lu: %s = %s\n", millis(), topic, payload);
+    } else {
+        client.publish(topic, payload);
     }
+    client.loop();
 }
 
 void MQTT::loop() {
