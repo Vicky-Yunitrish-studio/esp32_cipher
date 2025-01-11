@@ -5,7 +5,6 @@ using std::min;
 Cryptor::Cryptor() {
     memset(key, 0, KEY_SIZE);
     memset(nonce, 0, NONCE_SIZE);
-    memset(nonce, 0, NONCE_SIZE);
 }
 
 String Cryptor::formatMacAddress(const String& macAddress) {
@@ -90,22 +89,32 @@ void Cryptor::chacha20Block(uint8_t output[64], const uint8_t key[32], uint32_t 
 
 String Cryptor::encrypt(const String& data) {
     size_t dataLen = data.length();
-    uint8_t* output = new uint8_t[dataLen + TAG_SIZE];
+    uint8_t* input = (uint8_t*)data.c_str();
+    uint8_t* output = new uint8_t[dataLen];
     uint8_t keyStream[64];
+    
+    // Reset counter for each encryption
+    uint32_t localCounter = counter;
     
     // Generate keystream and encrypt
     for(size_t i = 0; i < dataLen; i += 64) {
-        chacha20Block(keyStream, key, counter++, nonce);
-        for(size_t j = 0; j < min<size_t>(64UL, dataLen - i); j++) {
-            output[i + j] = data[i + j] ^ keyStream[j];
+        chacha20Block(keyStream, key, localCounter++, nonce);
+        size_t blockSize = min<size_t>(64UL, dataLen - i);
+        for(size_t j = 0; j < blockSize; j++) {
+            output[i + j] = input[i + j] ^ keyStream[j];
         }
     }
     
+    // Update global counter
+    counter = localCounter;
+    
     // Convert to hex string
     String result;
+    result.reserve(dataLen * 2); // Pre-allocate space
     for(size_t i = 0; i < dataLen; i++) {
-        if(output[i] < 16) result += "0";
-        result += String(output[i], HEX);
+        char hex[3];
+        sprintf(hex, "%02x", output[i]);
+        result += hex;
     }
     
     delete[] output;
@@ -115,7 +124,7 @@ String Cryptor::encrypt(const String& data) {
 String Cryptor::decrypt(const String& encryptedData) {
     size_t dataLen = encryptedData.length() / 2;
     uint8_t* input = new uint8_t[dataLen];
-    uint8_t* output = new uint8_t[dataLen];
+    uint8_t* output = new uint8_t[dataLen + 1]; // +1 for null terminator
     uint8_t keyStream[64];
     
     // Convert hex string to bytes
@@ -124,15 +133,24 @@ String Cryptor::decrypt(const String& encryptedData) {
         input[i] = (uint8_t)strtol(byteStr.c_str(), NULL, 16);
     }
     
+    // Reset counter for each decryption
+    uint32_t localCounter = counter;
+    
     // Decrypt using keystream
     for(size_t i = 0; i < dataLen; i += 64) {
-        chacha20Block(keyStream, key, counter++, nonce);
-        for(size_t j = 0; j < min<size_t>(64UL, dataLen - i); j++) {
+        chacha20Block(keyStream, key, localCounter++, nonce);
+        size_t blockSize = min<size_t>(64UL, dataLen - i);
+        for(size_t j = 0; j < blockSize; j++) {
             output[i + j] = input[i + j] ^ keyStream[j];
         }
     }
     
-    String result = String((char*)output, dataLen);
+    // Update global counter
+    counter = localCounter;
+    
+    // Ensure null termination
+    output[dataLen] = 0;
+    String result((char*)output);
     
     delete[] input;
     delete[] output;

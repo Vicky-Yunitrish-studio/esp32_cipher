@@ -22,4 +22,5 @@ class Cryptor {
         void init(const String& macAddress);
         String encrypt(const String& data);
         String decrypt(const String& encryptedData);
+        void resetCounter() { counter = 0; }  // Add this method
 };
