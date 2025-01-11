@@ -11,7 +11,7 @@ private:
     static constexpr const char* DEFAULT_BROKER = "81a9af6ef0a24070877e2fdb6ce5adb9.s1.eu.hivemq.cloud";
     static constexpr int DEFAULT_PORT = 8883;
     static constexpr const char* MQTT_USERNAME = "esp32-0001";
-    static constexpr const char* MQTT_PASSWORD = "Esp320002";
+    static constexpr const char* MQTT_PASSWORD = "Esp320001";
 
     WiFiClientSecure espClient;
     PubSubClient client;

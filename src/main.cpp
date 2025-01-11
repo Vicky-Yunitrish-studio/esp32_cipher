@@ -2,11 +2,17 @@
 #include "Cryptor.h"
 #include "StorageManager.h"
 #include "Connect.h"
+#include "MQTT.h"
 #include <WiFi.h>
 
 Cryptor cryptor;
 StorageManager storage;
 Connect connect;
+MQTT mqtt;
+
+// 時間追蹤變數
+unsigned long lastMsgTime = 0;
+const long msgInterval = 5000;  // 每5秒發送一次
 
 void setup() {
     Serial.begin(115200);
@@ -109,6 +115,21 @@ void setup() {
             Serial.println("✗ Test failed!");
         }
     }
+
+    // MQTT設定
+    mqtt.setup();
+    mqtt.enableEncryption(true);  // 啟用加密
+    
+    // 等待MQTT連接
+    while (!mqtt.isConnected()) {
+        Serial.println("Attempting MQTT connection...");
+        if (mqtt.connect(storage.getDeviceMac().c_str())) {
+            Serial.println("MQTT Connected!");
+        } else {
+            Serial.println("MQTT connection failed, retrying in 5 seconds...");
+            delay(5000);
+        }
+    }
 }
 
 void loop() {
@@ -117,7 +138,34 @@ void loop() {
         Serial.println("WiFi connection lost, attempting to reconnect...");
         connect.setup();
         delay(5000);  // 等待5秒後重試
+        return;
     }
     
+    // 確保MQTT保持連接
+    if (!mqtt.isConnected()) {
+        Serial.println("MQTT connection lost, attempting to reconnect...");
+        mqtt.connect(storage.getDeviceMac().c_str());
+        return;
+    }
+
+    // 定期發送加密訊息
+    unsigned long currentMillis = millis();
+    if (currentMillis - lastMsgTime >= msgInterval) {
+        lastMsgTime = currentMillis;
+        
+        // 準備要發送的訊息
+        String message = "Test message from " + storage.getDeviceMac() + " at " + String(currentMillis);
+        
+        // 發送加密訊息到MQTT主題
+        String topic = String("duel_cipher32/") + storage.getGroupName() + "/" + storage.getDeviceMac() + "/test";
+        mqtt.publish(topic.c_str(), message.c_str());
+        
+        Serial.println("Published message: " + message);
+    }
+    
+    // MQTT loop處理
+    mqtt.loop();
+    delay(10);  // 短暫延遲以避免看門狗重置
+
     delay(1000);
 }

@@ -69,17 +69,24 @@ void MQTT::encryptionTaskFunction(void* parameter) {
 
 void MQTT::publish(const char* topic, const char* payload) {
     if (encryptionEnabled) {
-        String encryptedData = encryption.encrypt(String(payload));
+        String dataToEncrypt = String(payload);
+        String encryptedData = encryption.encrypt(dataToEncrypt);
         
-        // 使用無冒號的MAC地址
-        String mac = WiFi.macAddress();
-        mac.replace(":", "");
+        // 確保在發布前先進行解密測試
+        String decryptedData = encryption.decrypt(encryptedData);
         
-        String message = "{\"data\":\"" + encryptedData + "\",";
-        message += "\"mac\":\"" + mac + "\",";
-        message += "\"timestamp\":" + String(millis()) + "}";
+        Serial.println("\n=== MQTT Debug Info ===");
+        Serial.println("Topic: " + String(topic));
+        Serial.println("Original: " + dataToEncrypt);
+        Serial.println("Encrypted: " + encryptedData);
+        Serial.println("Decrypted: " + decryptedData);  // 修正拼寫錯誤
+        Serial.println("=====================\n");
         
-        bool success = client.publish(topic, message.c_str());
+        if (decryptedData != dataToEncrypt) {
+            Serial.println("Warning: Decryption verification failed!");
+        }
+        
+        bool success = client.publish(topic, encryptedData.c_str());
         if (!success) {
             Serial.println("MQTT publish failed");
             return;

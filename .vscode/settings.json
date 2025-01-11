@@ -9,6 +9,8 @@
         "vector": "cpp",
         "initializer_list": "cpp",
         "cmath": "cpp",
-        "memory": "cpp"
+        "memory": "cpp",
+        "cstring": "cpp",
+        "algorithm": "cpp"
     }
 }
