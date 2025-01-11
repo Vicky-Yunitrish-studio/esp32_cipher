@@ -30,6 +30,27 @@ void Cryptor::init(const String& macAddress) {
     }
 }
 
+void Cryptor::init(const String& macAddress, const uint8_t* customKey, size_t keyLength) {
+    counter = 0;
+    String formattedMac = formatMacAddress(macAddress);
+    
+    // Use MAC address as nonce
+    for(size_t i = 0; i < min(NONCE_SIZE, formattedMac.length()); i++) {
+        nonce[i] = formattedMac[i];
+    }
+    
+    // Use custom key
+    size_t keySize = min(KEY_SIZE, keyLength);
+    memcpy(key, customKey, keySize);
+    
+    // If the provided key is shorter than KEY_SIZE, pad with MAC address
+    if (keySize < KEY_SIZE) {
+        for(size_t i = keySize; i < KEY_SIZE; i++) {
+            key[i] = formattedMac[i % formattedMac.length()];
+        }
+    }
+}
+
 void Cryptor::chacha20Block(uint8_t output[64], const uint8_t key[32], uint32_t counter, const uint8_t nonce[12]) {
     uint32_t state[16];
     // ChaCha20 constants
