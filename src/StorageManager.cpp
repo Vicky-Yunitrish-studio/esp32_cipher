@@ -15,33 +15,52 @@ StorageManager::StorageManager() : initialized(false) {
 }
 
 bool StorageManager::init(const char* defaultGroup, const char* defaultSSID, const char* defaultPassword) {
+    // 結束之前的SPIFFS會話（如果有的話）
+    SPIFFS.end();
+    
+    // 初始化SPIFFS，true參數會格式化檔案系統如果掛載失敗
     if (!SPIFFS.begin(true)) {
         Serial.println("SPIFFS Mount Failed");
         return false;
     }
     
-    // Initialize key
+    Serial.println("SPIFFS mounted successfully");
+    
+    // 初始化加密金鑰
     initialized = loadKey();
     if (!initialized) {
+        Serial.println("Generating new encryption key...");
         generateRandomKey();
         initialized = saveKey(key);
     }
     
-    // Initialize config
-    bool configLoaded = loadConfig() && loadWiFiConfig();
-    if (!configLoaded) {
-        // Set default values using parameters
-        strcpy(groupName, defaultGroup);
-        strcpy(wifiSSID, defaultSSID);
-        strcpy(wifiPassword, defaultPassword);
-        
-        // Save default values
-        saveConfig(groupName);
-        saveWiFiConfig(wifiSSID, wifiPassword);
+    // 嘗試載入現有配置
+    bool configLoaded = loadConfig();
+    bool wifiLoaded = loadWiFiConfig();
+    
+    // 如果配置不存在或無效，使用預設值
+    if (!configLoaded && defaultGroup) {
+        Serial.println("Saving default group config...");
+        saveConfig(defaultGroup);
     }
     
-    // Setup MQTT topics after initialization
+    if (!wifiLoaded && defaultSSID && defaultPassword) {
+        Serial.println("Saving default WiFi config...");
+        saveWiFiConfig(defaultSSID, defaultPassword);
+    }
+    
+    // 設置MQTT主題
     setupTopics();
+    
+    // 列出SPIFFS中的所有文件（用於偵錯）
+    File root = SPIFFS.open("/");
+    File file = root.openNextFile();
+    Serial.println("SPIFFS files:");
+    while(file) {
+        Serial.print("- ");
+        Serial.println(file.name());
+        file = root.openNextFile();
+    }
     
     return initialized;
 }
@@ -129,15 +148,30 @@ bool StorageManager::saveConfig(const char* group) {
 
 bool StorageManager::saveWiFiConfig(const char* ssid, const char* password) {
     File file = SPIFFS.open(WIFI_FILE, "w");
-    if (!file) return false;
+    if (!file) {
+        Serial.println("Failed to open WiFi config file for writing");
+        return false;
+    }
     
+    // 寫入並立即刷新到儲存設備
     file.println(ssid);
     file.println(password);
+    file.flush();
+    
+    // 更新內部儲存的值
     strncpy(wifiSSID, ssid, sizeof(wifiSSID) - 1);
     strncpy(wifiPassword, password, sizeof(wifiPassword) - 1);
     
     file.close();
-    return true;
+    
+    // 驗證寫入是否成功
+    if (loadWiFiConfig()) {
+        Serial.println("WiFi config saved and verified");
+        return true;
+    }
+    
+    Serial.println("WiFi config save verification failed");
+    return false;
 }
 
 void StorageManager::setupTopics() {
