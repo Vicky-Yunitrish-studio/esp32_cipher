@@ -117,8 +117,8 @@ void setup() {
     }
 
     // MQTT設定
-    mqtt.setup();
-    mqtt.enableEncryption(true);  // 啟用加密
+    mqtt.setup("81a9af6ef0a24070877e2fdb6ce5adb9.s1.eu.hivemq.cloud", 8883);
+    mqtt.setCredentials("esp32-0001", "Esp320001");
     
     // 等待MQTT連接
     while (!mqtt.isConnected()) {
@@ -156,16 +156,30 @@ void loop() {
         // 準備要發送的訊息
         String message = "Test message from " + storage.getDeviceMac() + " at " + String(currentMillis);
         
+        // 加密訊息
+        cryptor.resetCounter();
+        String encrypted = cryptor.encrypt(message);
+        
         // 發送加密訊息到MQTT主題
         String topic = String("duel_cipher32/") + storage.getGroupName() + "/" + storage.getDeviceMac() + "/test";
-        mqtt.publish(topic.c_str(), message.c_str());
         
-        Serial.println("Published message: " + message);
+        // Debug 輸出
+        Serial.println("\n=== MQTT Debug Info ===");
+        Serial.println("Topic: " + topic);
+        Serial.println("Original: " + message);
+        Serial.println("Encrypted: " + encrypted);
+        Serial.println("=====================\n");
+        
+        // 發布訊息
+        if (mqtt.publish(topic.c_str(), encrypted.c_str())) {
+            Serial.println("Published message: " + message);
+        } else {
+            Serial.println("Failed to publish message");
+        }
     }
     
-    // MQTT loop處理
     mqtt.loop();
-    delay(10);  // 短暫延遲以避免看門狗重置
+    delay(10);
 
     delay(1000);
 }

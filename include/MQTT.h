@@ -1,53 +1,56 @@
 #pragma once
-#ifndef MQTT_H
-#define MQTT_H
-
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
-#include "Encryption.h"
 
 class MQTT {
 private:
-    static constexpr const char* DEFAULT_BROKER = "81a9af6ef0a24070877e2fdb6ce5adb9.s1.eu.hivemq.cloud";
-    static constexpr int DEFAULT_PORT = 8883;
-    static constexpr const char* MQTT_USERNAME = "esp32-0001";
-    static constexpr const char* MQTT_PASSWORD = "Esp320001";
-
     WiFiClientSecure espClient;
     PubSubClient client;
-    Encryption encryption;
-    bool encryptionEnabled;
-    QueueHandle_t encryptionQueue;
-    TaskHandle_t encryptionTask;
+    const char* username;
+    const char* password;
     unsigned long lastReconnectAttempt = 0;
-    const unsigned long RECONNECT_DELAY = 5000; // 5 seconds
-
-    struct EncryptionJob {
-        String data;
-        String topic;
-        bool isPublish;
-    };
-
-    static void encryptionTaskFunction(void* parameter);
+    const unsigned long RECONNECT_DELAY = 5000;
 
 public:
-    MQTT();
-    void setup(const char* server = "broker.hivemq.com", int port = 1883);
-    bool connect(const char* clientId = "ESP32_Client");
-    void publish(const char* topic, const char* payload);
-    void loop();
-    bool isConnected() { 
-        if (!client.connected()) {
-            unsigned long now = millis();
-            if (now - lastReconnectAttempt > RECONNECT_DELAY) {
-                lastReconnectAttempt = now;
-                connect();
-            }
-        }
-        return client.connected(); 
+    MQTT() : username(nullptr), password(nullptr) {
+        client.setClient(espClient);
     }
-    void enableEncryption(bool enable);
-    static void callback(char* topic, byte* payload, unsigned int length);
+    
+    void setup(const char* broker, int port) {
+        client.setServer(broker, port);
+        espClient.setInsecure();
+    }
+    
+    void setCredentials(const char* user, const char* pass) {
+        username = user;
+        password = pass;
+    }
+    
+    bool connect(const char* clientId) {
+        if (!client.connected()) {
+            Serial.println("Connecting to MQTT...");
+            if (client.connect(clientId, username, password)) {
+                Serial.println("Connected to MQTT broker");
+                return true;
+            }
+            Serial.println("Failed to connect to MQTT");
+            return false;
+        }
+        return true;
+    }
+    
+    bool publish(const char* topic, const char* payload) {
+        if (!client.connected()) return false;
+        return client.publish(topic, payload);
+    }
+    
+    bool isConnected() {
+        return client.connected();
+    }
+    
+    void loop() {
+        if (client.connected()) {
+            client.loop();
+        }
+    }
 };
-
-#endif
