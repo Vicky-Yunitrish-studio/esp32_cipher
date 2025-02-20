@@ -19,11 +19,11 @@ class Cryptor {
         
     public:
         Cryptor();
-        // 新增使用自定義金鑰初始化的方法
         void init(const String& macAddress, const uint8_t* customKey, size_t keyLength);
-        // 保留原有方法作為備用
         void init(const String& macAddress);
         String encrypt(const String& data);
         String decrypt(const String& encryptedData);
         void resetCounter() { counter = 0; }
+        const uint8_t* getNonce() const { return nonce; }
+        uint32_t getCounter() const { return counter; }
 };

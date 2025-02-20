@@ -156,6 +156,18 @@ void loop() {
         // 準備要發送的訊息
         String message = "Test message from " + storage.getDeviceMac() + " at " + String(currentMillis);
         
+        // Debug輸出加密相關資訊
+        Serial.println("\nEncryption debug info:");
+        Serial.print("Counter: ");
+        Serial.println(cryptor.getCounter());
+        Serial.print("Nonce (hex): ");
+        const uint8_t* nonce = cryptor.getNonce();
+        for(int i = 0; i < 12; i++) {
+            if(nonce[i] < 0x10) Serial.print("0");
+            Serial.print(nonce[i], HEX);
+        }
+        Serial.println();
+        
         // 加密訊息
         cryptor.resetCounter();
         String encrypted = cryptor.encrypt(message);
@@ -168,6 +180,11 @@ void loop() {
         Serial.println("Topic: " + topic);
         Serial.println("Original: " + message);
         Serial.println("Encrypted: " + encrypted);
+        
+        // 測試解密
+        cryptor.resetCounter();
+        String decrypted = cryptor.decrypt(encrypted);
+        Serial.println("Decrypted: " + decrypted);
         Serial.println("=====================\n");
         
         // 發布訊息
